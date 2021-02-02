@@ -3,4 +3,4 @@
 
 # Usage
 
-    .\country.ps1 -country <https://country.co/country>
+    .\country.ps1 -country https://country.co/country
