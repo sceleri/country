@@ -1,4 +1,17 @@
-param ($country="https://www.youtube.com/playlist?list=PL5hpscggGRw1K32H0OLA1j65Xb-TLPgD_")
+param (
+	# Playlist URL
+	[Parameter(Mandatory=$false,
+	ParameterSetName="Country")]
+	[String[]]
+	$Country="https://www.youtube.com/playlist?list=PL5hpscggGRw1K32H0OLA1j65Xb-TLPgD_",
+
+	# Switch to not play after download
+	[Parameter(Mandatory=$false)]
+	[Switch]
+	$noplay
+
+)
+
 $list = "script_files\list.txt"
 $countryroad = ".\country\"
 
@@ -11,7 +24,6 @@ class Song {
     }
 
 }
-
 function Play-List {
 	Write-Host "All songs downloaded" -ForegroundColor Green
 	Write-Host "#Country" -ForegroundColor White
@@ -63,8 +75,9 @@ function Country {
 
 	Remove-Removed-Songs
 	
-	Play-List
-
+	if(-Not $noplay.IsPresent) {
+		Play-List
+	}
 }
 
 Country
