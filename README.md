@@ -1,6 +1,6 @@
 # country
 #Country
 
-#Usage
+# Usage
 
     .\country.ps1 -country <https://country.co/country>
