@@ -1,0 +1,5 @@
+-o '.\country\[%(id)s] %(uploader)s - %(title)s.%(ext)s'
+--download-archive 'script_files\downloaded.txt'
+--restrict-filenames
+-x 
+-i 
