@@ -1,3 +1,4 @@
-country/
-downloaded.txt
-list.txt
+*
+!.gitignore
+!README.md
+!country.ps1

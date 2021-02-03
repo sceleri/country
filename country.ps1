@@ -1,38 +1,59 @@
 param (
 	# Playlist URL
-	[Parameter(Mandatory=$false,
+	[Parameter(Mandatory=$true,
 	ParameterSetName="Country")]
 	[String[]]
-	$Country="https://www.youtube.com/playlist?list=PL5hpscggGRw1K32H0OLA1j65Xb-TLPgD_",
+	$Country,
+
+	# Country download path
+	[Parameter(Mandatory=$false)]
+	[String[]]
+	$Countryroad="country",
+
+	# Path to extracted playlist
+	[Parameter(Mandatory=$false)]
+	[String[]]
+	$List="script_files\list.txt",
+
+	# Path to list of downloaded songs
+	[Parameter(Mandatory=$false)]
+	[String[]]
+	$Downloaded="script_files\downloaded.txt",
 
 	# Switch to not play after download
 	[Parameter(Mandatory=$false)]
 	[Switch]
-	$noplay
+	$noplay,
+
+	# Skip fetching playlist
+	[Parameter(Mandatory=$false)]
+	[Switch]
+	$skiplist
 
 )
-
-$list = "script_files\list.txt"
-$countryroad = ".\country\"
 
 class Song {
 	[string]$Id
 	[string]$Title
-		
+	[string]$Url
+	[string]$Filename
+	
 	[string]ToString(){
         return ("{0} | {1}" -f $this.Id, $this.Title)
     }
 
 }
+
 function Play-List {
 	Write-Host "All songs downloaded" -ForegroundColor Green
-	Write-Host "#Country" -ForegroundColor White
-	& 'C:\Program Files (x86)\foobar2000\foobar2000.exe' 'A:\Music\country\' '/runcmd=Playback/Order/Random'
+	Write-Host "Playing #Country" -ForegroundColor White
+	& 'C:\Program Files (x86)\foobar2000\foobar2000.exe' $Countryroad '/runcmd=Playback/Order/Random'
 }
 
 function Make-List {
-	Write-Host "Fetching playlist" -ForegroundColor Green
-	youtube-dl -i --flat-playlist --get-title --get-id --restrict-filenames $country > $list
+	Write-Host "Fetching playlist" -ForegroundColor Blue
+	$output = "[%(id)s] %(uploader)s - %(title)s"
+	youtube-dl -i --get-title --get-id --get-filename -o $output --get-url $Country > $list
 }
 function Get-List-Array {
 	$array = Get-Content $list
@@ -41,13 +62,17 @@ function Get-List-Array {
 }
 
 function Song-Downloaded($song) {
-	$path = $countryroad + "*" + '``[' + $song.Id + '``]' + "*.*"
-	return Test-Path -Path -- $path
+	$songpath = "$($Countryroad)" + '\*' + '``[' + "$($song.Id)" + '``]' + '*.*'
+	Write-Host "We do a little trolling $($songpath)" -ForegroundColor Cyan
+	return Test-Path $songpath
 }
 
 function Download-Song($song) {
 	Write-Host "Downloading $($song.Title)" -ForegroundColor Yellow
-	youtube-dl --config-location "script_files\config.txt" "https://youtu.be/$($song.Id)"
+	$output = "$($Countryroad)\$($song.Filename).%(ext)s"
+	youtube-dl -o $output --download-archive $Downloaded `
+		--extract-audio --ignore-config --ignore-errors `
+		$song.Url
 }
 
 function Remove-Removed-Songs {
@@ -56,20 +81,35 @@ function Remove-Removed-Songs {
 
 function Country {
 	
-	Make-List
+	if(-Not $skiplist.IsPresent) {
+		Make-List
+	}
 	
 	$array = Get-List-Array
 
-	for ($i = 0; $i -lt ($array.Length); ($i = $i + 2)) {
-		$s = [Song]::new()
-		$s.Title = $array[$i]
-		$s.Id = $Array[$i + 1]
+	# Check if youtube-dl extracted one or two urls
+	if ($array[3].SubString(0,4) -ne "http") {
+		Write-Host "Extracting from audio only source" -ForegroundColor Blue
+		$increment = 4
+	} else {
+		Write-Host "Extracting from video + audio source" -ForegroundColor Blue
+		$increment = 5
+	}
+
+	for ($i = 0; $i -lt ($array.Length); ($i = $i + $increment)) {
+		$song = [Song]::new()
+		$song.Title = $array[$i]
+		$song.Id = $array[$i + 1]
+		$song.Url = $array[$i + $increment - 2]
+		$song.Filename = $array[$i + $increment - 1]
+
+		Write-Host "Processing: $($song.Filename)" -ForegroundColor Magenta
 		
-		if(Song-Downloaded($s)) {
-			Write-Host "$s is downloaded" -ForegroundColor DarkGreen
+		if(Song-Downloaded($song)) {
+			Write-Host "$song is downloaded" -ForegroundColor DarkGreen
 		} else {
-			Write-Host "$s is not downloaded" -ForegroundColor Red
-			Download-Song($s)
+			Write-Host "$song is not downloaded" -ForegroundColor Red
+			Download-Song($song)
 		}
 	}
 
