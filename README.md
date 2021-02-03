@@ -8,7 +8,13 @@
 # Switches
 ```
   -Country <url>        Playlist to download.
+
   -Countryroad <path>   Output path.
+                        Default: ".\country"
+
+  -Metafiles <path>     Path for files used by the script. 
+                        Default: ".\script_files"
+
   -skiplist             Skips playlist fetching, uses local list.
   -noplay               Skips opening -Countryroad in foobar2k.
 ```

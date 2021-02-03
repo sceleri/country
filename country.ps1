@@ -13,12 +13,7 @@ param (
 	# Path to extracted playlist
 	[Parameter(Mandatory=$false)]
 	[String[]]
-	$List="script_files\list.txt",
-
-	# Path to list of downloaded songs
-	[Parameter(Mandatory=$false)]
-	[String[]]
-	$Downloaded="script_files\downloaded.txt",
+	$Metafiles=".\script_files",
 
 	# Switch to not play after download
 	[Parameter(Mandatory=$false)]
@@ -53,10 +48,10 @@ function Play-List {
 function Make-List {
 	Write-Host "Fetching playlist" -ForegroundColor Blue
 	$output = "[%(id)s] %(uploader)s - %(title)s"
-	youtube-dl -i --get-title --get-id --get-filename -o $output --get-url $Country > $list
+	youtube-dl -i --get-title --get-id --get-filename -o $output --get-url $Country > "$($Metafiles)\list.txt"
 }
 function Get-List-Array {
-	$array = Get-Content $list
+	$array = Get-Content "$($Metafiles)\list.txt"
 	$array = $array -split "`r?`n" 
 	return $array
 }
@@ -70,7 +65,7 @@ function Song-Downloaded($song) {
 function Download-Song($song) {
 	Write-Host "Downloading $($song.Title)" -ForegroundColor Yellow
 	$output = "$($Countryroad)\$($song.Filename).%(ext)s"
-	youtube-dl -o $output --download-archive $Downloaded `
+	youtube-dl -o $output --download-archive "$($Metafiles)\downloaded.txt" `
 		--extract-audio --ignore-config --ignore-errors `
 		$song.Url
 }
@@ -81,10 +76,21 @@ function Remove-Removed-Songs {
 
 function Country {
 	
+	# Make script_files directory and downloaded.txt if missing
+	if(!(Test-Path $Metafiles)) {
+		New-Item -Path . -Name "$($Metafiles)\" -ItemType "directory"
+	}
+
+	if(!(Test-Path "$($Metafiles)\downloaded.txt")) {
+		New-Item -Path "$($Metafiles)\" -Name "downloaded.txt" -ItemType "file"
+	}
+
+	# Skip making list if the -skiplist switch is present
 	if(-Not $skiplist.IsPresent) {
 		Make-List
 	}
 	
+	# Get the list from file
 	$array = Get-List-Array
 
 	# Check if youtube-dl extracted one or two urls
@@ -101,7 +107,11 @@ function Country {
 		$song.Title = $array[$i]
 		$song.Id = $array[$i + 1]
 		$song.Url = $array[$i + $increment - 2]
-		$song.Filename = $array[$i + $increment - 1]
+
+		# Remove brackets from song names smh
+		$foilname = $array[$i + $increment - 1]
+		$foilname = $foilname.Replace('(','').Replace(')','')
+		$song.Filename = $foilname
 
 		Write-Host "Processing: $($song.Filename)" -ForegroundColor Magenta
 		
