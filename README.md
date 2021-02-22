@@ -3,7 +3,7 @@
 
 # Usage
 
-    .\country.ps1 [switches] -Country https://country.co/country
+    .\country.ps1 [switches] [|-c|-Country] https://country.co/country
 
 # Switches
 ```
@@ -17,4 +17,5 @@
 
   -skiplist             Skips playlist fetching, uses local list.
   -noplay               Skips opening -Countryroad in foobar2k.
+  -quiet                Supresses some of the logging.
 ```

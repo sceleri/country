@@ -1,29 +1,49 @@
 param (
 	# Playlist URL
 	[Parameter(Mandatory=$true,
-	ParameterSetName="Country")]
+	Position=0)]
+	[Alias("c", "pl", "playlist", "list")]
 	[String[]]
 	$Country,
 
 	# Country download path
 	[Parameter(Mandatory=$false)]
+	[Alias("p", "path", "output", "o")]
 	[String[]]
 	$Countryroad="country",
 
-	# Path to extracted playlist
+	# Path to extracted playlist and other files that the script uses
 	[Parameter(Mandatory=$false)]
+	[Alias("m", "meta")]
 	[String[]]
 	$Metafiles=".\script_files",
 
-	# Switch to not play after download
+	# Skip playing after download
 	[Parameter(Mandatory=$false)]
+	[Alias("n","np", "no")]
 	[Switch]
 	$noplay,
 
 	# Skip fetching playlist
+	# Really only useful for development
 	[Parameter(Mandatory=$false)]
+	[Alias("sl","nolist", "slist")]
 	[Switch]
-	$skiplist
+	$skiplist,
+
+	[Parameter(Mandatory=$false)]
+	[Alias("s", "mute", "shutup", "shut", "fuckoff")]
+	[Switch]
+	$silent,
+	
+	# Use --flat-playlist (speeds up YouTube playlist processing)
+	# Does not work for Soundcloud :/
+	# Does not work at all rn
+	# TODO: Make-URL (youtu.be/$song.Id) when using -yt
+	[Parameter(Mandatory=$false)]
+	[Alias("f", "yt")]
+	[Switch]
+	$flat
 
 )
 
@@ -40,38 +60,55 @@ class Song {
 }
 
 function Play-List {
-	Write-Host "All songs downloaded" -ForegroundColor Green
-	Write-Host "Playing #Country" -ForegroundColor White
+	Write-Host "Playing #Country" -ForegroundColor Green
 	& 'C:\Program Files (x86)\foobar2000\foobar2000.exe' $Countryroad '/runcmd=Playback/Order/Random'
 }
 
 function Make-List {
 	Write-Host "Fetching playlist" -ForegroundColor Blue
 	$output = "[%(id)s] %(uploader)s - %(title)s"
-	youtube-dl -i --get-title --get-id --get-filename -o $output --get-url $Country > "$($Metafiles)\list.txt"
+	if($flat.IsPresent) {
+		youtube-dl -i --flat-playlist --get-title --get-id --get-filename -o $output --get-url $Country | Out-File "$($Metafiles)\list.txt" -Encoding oem
+	} else {
+		youtube-dl -i --get-title --get-id --get-filename -o $output --get-url $Country | Out-File "$($Metafiles)\list.txt" -Encoding oem
+	}
 }
 function Get-List-Array {
-	$array = Get-Content "$($Metafiles)\list.txt"
+	$array = Get-Content "$($Metafiles)\list.txt" -Raw
 	$array = $array -split "`r?`n" 
 	return $array
 }
 
 function Song-Downloaded($song) {
 	$songpath = "$($Countryroad)" + '\*' + '``[' + "$($song.Id)" + '``]' + '*.*'
-	Write-Host "We do a little trolling $($songpath)" -ForegroundColor Cyan
+	Log-Message("We do a little trolling: ?$($song.Id)?")
 	return Test-Path $songpath
 }
 
 function Download-Song($song) {
-	Write-Host "Downloading $($song.Title)" -ForegroundColor Yellow
+	Log-Message("Downloading $($song.Title)")
 	$output = "$($Countryroad)\$($song.Filename).%(ext)s"
-	youtube-dl -o $output --download-archive "$($Metafiles)\downloaded.txt" `
-		--extract-audio --ignore-config --ignore-errors `
+	$format = "bestaudio"
+	$quiet = "--quiet"
+	if(-Not $silent.IsPresent) {
+		$quiet = ""
+	}
+	# Call youtube-dl
+	youtube-dl `
+		-o $output `
+		--download-archive "$($Metafiles)\downloaded.txt" `
+		--extract-audio `
+		--ignore-config `
+		--ignore-errors `
+		$quiet `
 		$song.Url
 }
 
-function Remove-Removed-Songs {
-	Write-Host "Remove removed songs not implemented" -ForegroundColor Red
+function Log-Message($message) {
+
+	if(-Not $silent.IsPresent) {
+		Write-Host $message 
+	}
 }
 
 function Country {
@@ -102,7 +139,9 @@ function Country {
 		$increment = 5
 	}
 
-	for ($i = 0; $i -lt ($array.Length); ($i = $i + $increment)) {
+	# Process all songs in the list array
+	# $array.Length - 1 because Get-Content -Raw gets the last newline 
+	for ($i = 0; $i -lt ($array.Length - 1); ($i = $i + $increment)) {
 		$song = [Song]::new()
 		$song.Title = $array[$i]
 		$song.Id = $array[$i + 1]
@@ -110,21 +149,23 @@ function Country {
 
 		# Remove brackets from song names smh
 		$foilname = $array[$i + $increment - 1]
-		$foilname = $foilname.Replace('(','').Replace(')','')
+		$foilname = $foilname -replace '[\(|\)|\%]'
 		$song.Filename = $foilname
 
-		Write-Host "Processing: $($song.Filename)" -ForegroundColor Magenta
+		Write-Host "Processing: [$($song.Id)]" -ForegroundColor Magenta
 		
 		if(Song-Downloaded($song)) {
-			Write-Host "$song is downloaded" -ForegroundColor DarkGreen
+			Write-Host "$($song.Title) is downloaded" -ForegroundColor DarkGreen
 		} else {
-			Write-Host "$song is not downloaded" -ForegroundColor Red
+			Write-Host "$($song.Title) is not downloaded" -ForegroundColor Red
 			Download-Song($song)
 		}
 	}
 
-	Remove-Removed-Songs
+	# Finish
+	Write-Host "All songs downloaded" -ForegroundColor Green
 	
+	# Play if -np is not present
 	if(-Not $noplay.IsPresent) {
 		Play-List
 	}
